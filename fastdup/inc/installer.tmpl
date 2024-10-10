@@ -299,7 +299,12 @@ class MySQLImporter {
       $this->addError("Connect Error (" . $this->conn->connect_errno . ") " . $this->conn->connect_error);
       return;
     }
-    $this->conn->query('SET GLOBAL max_allowed_packet = ' . 500 * 1024 * 1024);
+    
+    try {
+      $this->conn->query('SET GLOBAL max_allowed_packet = ' . 500 * 1024 * 1024);
+    } catch (Exception $e) {
+        // $this->addError("Error when run: SET GLOBAL max_allowed_packet");
+    }
   }
 
   private function addError($errorStr) {
@@ -334,7 +339,7 @@ class MySQLImporter {
     UPDATE {$db_prefix}links SET link_image = replace(link_image, '$old_domain', '$new_domain' ); \n";
 
     $query .= "DELETE FROM {$db_prefix}njt_fastdup_packages; \n";
-    $query .= "DELETE FROM {$db_prefix}njt_fastdup_entities; ";
+    // $query .= "DELETE FROM {$db_prefix}njt_fastdup_entities; ";
 
     return $query;
   }
