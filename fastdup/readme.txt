@@ -3,8 +3,8 @@ Contributors: ninjateam
 Donate link: https://codecanyon.net/item/media-folders-manager-for-wordpress/21715379
 Tags: migration, backup, duplicator, wp migration, backwpup, clone wordpress, duplicate, duplicate wordpress, migrate
 Requires at least: 3.0
-Tested up to: 6.6
-Stable tag: 2.4
+Tested up to: 6.7
+Stable tag: 2.5
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -105,6 +105,9 @@ Yes, FastDup is free and full-fledged.
 8. Installation successful
 
 == Changelog ==
+
+= Jan 17, 2025 - Version 2.5 =
+- Added: Show meaningful message when disk_free_space function is disabled
 
 = Oct 10, 2024 - Version 2.4 =
 - Fixed: "Access denied; you need (at least one of) the SUPER privilege(s)" error

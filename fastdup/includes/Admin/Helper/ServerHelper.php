@@ -69,14 +69,24 @@ class ServerHelper {
       'note' => __('This folder needs write permission.', 'fastdup'),
     );
 
-    $disk_space_free_val = disk_free_space(NJT_FASTDUP_WEB_ROOTPATH);
-    $disk_space_free = array(
-      'name' => __('Disk Space Available', 'fastdup'),
-      'value' => Helper::format_bytes(disk_free_space(NJT_FASTDUP_WEB_ROOTPATH)),
-      'status' => $disk_space_free_val > 100000000 ? true : false, // > 100MB true
-      'view_detail' => '',
-      'note' => __('Less than 100MB, please make sure your disk space is enough.', 'fastdup'),
-    );
+    if (function_exists('disk_free_space')) {
+      $disk_space_free_val = disk_free_space(NJT_FASTDUP_WEB_ROOTPATH);
+      $disk_space_free = array(
+        'name' => __('Disk Space Available', 'fastdup'),
+        'value' => Helper::format_bytes(disk_free_space(NJT_FASTDUP_WEB_ROOTPATH)),
+        'status' => $disk_space_free_val > 100000000 ? true : false, // > 100MB true
+        'view_detail' => '',
+        'note' => __('Less than 100MB, please make sure your disk space is enough.', 'fastdup'),
+      );
+    } else {
+      $disk_space_free = array(
+        'name' => __('Disk Space Available', 'fastdup'),
+        'value' => __('Unknown', 'fastdup'),
+        'status' => false,
+        'view_detail' => '',
+        'note' => __('Don\'t have permission to check disk space.', 'fastdup'),
+      );
+    }
 
     $general_require = array($web_server, $open_basedir, $php_version, $max_execution_time, $zip_archive, $permission_folder, $disk_space_free);
     if (!$is_support_wp) {

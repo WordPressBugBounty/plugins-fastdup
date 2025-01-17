@@ -4,7 +4,7 @@
  * Plugin Name:       FastDup
  * Plugin URI:        https://ninjateam.gitbook.io/fastdup/
  * Description:       WordPress Fastest Duplicator and Migration
- * Version:           2.4
+ * Version:           2.5
  * Author:            Ninja Team
  * Author URI:        https://ninjateam.org/
  * License:           GPLv2 or later
