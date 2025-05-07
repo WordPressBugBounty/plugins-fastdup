@@ -3,7 +3,7 @@
 // Prevent directly browsing to the file
 if (function_exists('plugin_dir_url')) {
   if (!defined('NJT_FASTDUP_VERSION')) {
-    define('NJT_FASTDUP_VERSION', '2.5');
+    define('NJT_FASTDUP_VERSION', '2.1.9');
   }
 
   if (!defined('NJT_FASTDUP_PACKAGE_ACTIVE')) {

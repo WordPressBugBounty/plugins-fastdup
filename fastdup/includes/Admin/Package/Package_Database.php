@@ -72,6 +72,7 @@ class Package_Database
     $dump_settings = array(
       'exclude-tables' => is_array($this->filter_tables) && $this->is_filter ? $this->filter_tables : array(),
       'no-autocommit' => false,
+      'default-character-set' => IMysqldump\Mysqldump::UTF8MB4,
     );
 
     $dump = new IMysqldump\Mysqldump("mysql:host={$host};dbname={$db_name}", DB_USER, DB_PASSWORD, $dump_settings);
