@@ -153,6 +153,13 @@ class Package
         if( $name == 'index.html' ) {
           continue;
         }
+        // check if file is a sql file, then delete it
+        if (strpos($name, '.sql') !== false) {
+          unlink($file);
+          LogHelper::write_log($this->name_hash, 'info', "Delete File {$file}");
+          continue;
+        }
+
         $to = "{$new_path}/{$name}";
         $status = $this->rename_win($file, $to);
         LogHelper::write_log($this->name_hash, 'info', "Move File {$file} To Packages Directory " . ($status ? "Successfully" : "Unsuccessfully"));

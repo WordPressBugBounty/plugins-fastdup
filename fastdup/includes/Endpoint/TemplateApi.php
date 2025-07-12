@@ -3,6 +3,7 @@ namespace NJT\FastDup\Endpoint;
 
 use NJT\FastDup\Admin\Database\Database as Database;
 use NJT\FastDup\Admin\Helper\PackageHelper;
+use NJT\FastDup\Admin\Helper\DirectoryHelper;
 use NJT\FastDup\Admin\Template as Template;
 
 defined('ABSPATH') || exit;
@@ -114,7 +115,8 @@ class TemplateApi {
   public function initial($request) {
     //File Dirs
     $directory_scan = rtrim(NJT_FASTDUP_WEB_ROOTPATH, '/');
-    $file_dirs = PackageHelper::directoryToArray($directory_scan, false);
+    $scanner = new DirectoryHelper();
+    $file_dirs = PackageHelper::directoryToArray($directory_scan, false, '', $scanner, true);
 
     //Tables
     $tables = Database::get_tables();
@@ -215,16 +217,19 @@ class TemplateApi {
     $dir_key = $request['dir_key'];
 
     $directory_scan = rtrim(NJT_FASTDUP_WEB_ROOTPATH . $dir_path, '/');
-    $file_dirs = PackageHelper::directoryToArray($directory_scan, false);
+
+    $scanner = new DirectoryHelper();
+    $file_dirs = PackageHelper::directoryToArray($directory_scan, false, '', $scanner, true);
     foreach ($file_dirs as $key => $item) {
       $child_dirs[] = array(
-        "key" => $dir_key . '-' . $key,
-        "title" => $item['title'],
-        "full_path" => $item['full_path'],
-        'type' => $item['type'],
-        'scopedSlots' => $item['scopedSlots'],
-        'children' => array(),
-        'isLeaf' => $item['isLeaf'],
+        "key"            => $dir_key . '-' . $key,
+        "title"          => $item['title'],
+        "full_path"      => $item['full_path'],
+        "size_formatted" => $item['size_formatted'],
+        'type'           => $item['type'],
+        'scopedSlots'    => $item['scopedSlots'],
+        'children'       => array(),
+        'isLeaf'         => $item['isLeaf'],
       );
     }
 

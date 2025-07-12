@@ -107,7 +107,7 @@ class PackageHelper
    * @param bool $recursive         Include sub directories
    * @param regex $exclude         Exclude paths that matches this regex
    */
-  public static function directoryToArray($directory, $recursive = true, $exclude = '')
+  public static function directoryToArray($directory, $recursive = true, $exclude = '', $scanner = null, $get_size = false)
   {
     $arrayItems = array();
     $skipByExclude = false;
@@ -115,7 +115,9 @@ class PackageHelper
 
     $dirs = array();
     $files = array();
-
+    if ($scanner === null && $get_size) {
+      $scanner = new DirectoryHelper();
+    }
     if ($handle) {
       $key = 0;
       while (false !== ($file = readdir($handle))) {
@@ -128,17 +130,21 @@ class PackageHelper
           $key++;
           if (is_dir($directory . DIRECTORY_SEPARATOR . $file)) {
             if ($recursive) {
-              $arrayItems = array_merge($arrayItems, self::directoryToArray($directory . DIRECTORY_SEPARATOR . $file, $recursive, $exclude));
+              $arrayItems = array_merge($arrayItems, self::directoryToArray($directory . DIRECTORY_SEPARATOR . $file, $recursive, $exclude, $scanner, $get_size));
             }
 
             $full_path = $directory . DIRECTORY_SEPARATOR . $file;
             $full_path = Helper::safe_path($full_path);
+
+            $original_path = $full_path;
+
             $full_path = str_replace(NJT_FASTDUP_WEB_ROOTPATH, "", $full_path);
 
             $dirs[] = array(
               "key" => $key,
               "title" => $file,
               "full_path" => $full_path,
+              "size_formatted" => $get_size ? self::getFolderSize($original_path, false, true, $scanner) : 0,
               'type' => 'dir',
               'scopedSlots' => array('icon' => 'custom'),
               'children' => array(),
@@ -153,6 +159,7 @@ class PackageHelper
               "key" => $key,
               "title" => $file,
               "full_path" => $full_path,
+              "size_formatted" => $get_size ? self::format_size( filesize( $full_path )) : 0,
               'type' => 'file',
               'scopedSlots' => array('icon' => 'file'),
               'isLeaf' => true,
@@ -192,5 +199,51 @@ class PackageHelper
       }
     }
     return $result;
+  }
+
+  public static function format_size($bytes)
+  {
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    $bytes = max($bytes, 0);
+    $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+    $pow = min($pow, count($units) - 1);
+    
+    $bytes /= pow(1024, $pow);
+    
+    return round($bytes, 2) . ' ' . $units[$pow];
+  }
+
+  public static function getFolderSize($path, $followSymlinks = false, $includeHidden = true, $scanner = null)
+  {
+
+    try {
+      // Use provided scanner or create new one
+      if ($scanner === null) {
+        $scanner = new DirectoryHelper();
+      }
+      
+      // Configure exclusions based on includeHidden option
+      if ($includeHidden) {
+        // Include everything
+        $scanner->setExcludeDirs([]);
+        $scanner->setExcludeFiles([]);
+      } else {
+        // Exclude hidden directories and files
+        $hiddenDirs = ['.git', '.svn', '.idea', '.vscode'];
+        $hiddenFiles = ['.DS_Store', '.gitignore', '.htaccess', 'Thumbs.db', 'desktop.ini'];
+        
+        $scanner->setExcludeDirs($hiddenDirs);
+        $scanner->setExcludeFiles($hiddenFiles);
+      }
+      
+      $scanner->setExcludeExts([]);
+      $scanner->setFollowSymlinks($followSymlinks);
+      
+      $result = $scanner->quickScan($path);
+      return $result['total_size_formatted'];
+      
+    } catch (\Exception $e) {
+      return "Error";
+    }
   }
 }
