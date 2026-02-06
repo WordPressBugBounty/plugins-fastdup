@@ -384,7 +384,6 @@ class MySQLImporter {
           $this->addError("Query error (" . $this->conn->errno . ") " . $this->conn->error);
         }
       }
-
       //Select the database if it's required
       if ($database != "") {
         if (!$this->conn->select_db($database)) {

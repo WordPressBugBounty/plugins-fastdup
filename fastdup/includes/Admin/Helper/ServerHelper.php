@@ -39,7 +39,7 @@ class ServerHelper {
       'name' => __('PHP Max Execution Time', 'fastdup'),
       'value' => $max_exc_value,
       'status' => $max_exc_value == 0 ? true : false,
-      'view_detail' => '',
+      'view_detail' => 'https://www.php.net/manual/en/info.configuration.php#ini.max-execution-time',
       'note' => __('If the [max_execution_time] value in the php.ini is too low, errors may occur. It is recommended to set timeout to value of 0.', 'fastdup'),
     );
 

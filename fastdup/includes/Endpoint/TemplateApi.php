@@ -213,10 +213,48 @@ class TemplateApi {
 
   public function open_directory_tree($request) {
     $request = stripslashes_deep($request);
+    
+    // Validate required parameters
+    if (!isset($request['dir_path'])) {
+      return new \WP_Error('missing_parameter', 'dir_path parameter is required', array('status' => 400));
+    }
+    
     $dir_path = $request['dir_path'];
     $dir_key = $request['dir_key'];
 
-    $directory_scan = rtrim(NJT_FASTDUP_WEB_ROOTPATH . $dir_path, '/');
+    // Normalize and validate path
+    $dir_path = str_replace('\\', '/', $dir_path);
+    $dir_path = trim($dir_path, '/');
+    
+    // Prevent path traversal attempts
+    if (strpos($dir_path, '..') !== false || strpos($dir_path, './') !== false) {
+      return new \WP_Error('invalid_path', 'Invalid directory path: path traversal detected', array('status' => 400));
+    }
+    
+    // Build full path
+    $base_path = rtrim(NJT_FASTDUP_WEB_ROOTPATH, '/');
+    $full_path = $base_path . '/' . $dir_path;
+    
+    // Resolve real path to prevent symlink attacks
+    $resolved_path = realpath($full_path);
+    $resolved_base = realpath($base_path);
+    
+    // Ensure the resolved path is within the allowed base directory
+    if ($resolved_path === false || $resolved_base === false) {
+      return new \WP_Error('invalid_path', 'Invalid directory path: path does not exist', array('status' => 400));
+    }
+    
+    // Check if path is within base directory (prevent directory traversal)
+    if (strpos($resolved_path, $resolved_base) !== 0) {
+      return new \WP_Error('invalid_path', 'Invalid directory path: access denied', array('status' => 403));
+    }
+    
+    // Ensure it's a directory
+    if (!is_dir($resolved_path)) {
+      return new \WP_Error('invalid_path', 'Invalid directory path: not a directory', array('status' => 400));
+    }
+    
+    $directory_scan = $resolved_path;
 
     $scanner = new DirectoryHelper();
     $file_dirs = PackageHelper::directoryToArray($directory_scan, false, '', $scanner, true);
@@ -245,6 +283,6 @@ class TemplateApi {
    * @return WP_Error|bool
    */
   public function njt_fastdup_permissions_check($request) {
-    return current_user_can('edit_posts');
+    return current_user_can('manage_options');
   }
 }

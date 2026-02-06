@@ -368,6 +368,6 @@ class PackageApi
    */
   public function njt_fastdup_permissions_check($request)
   {
-    return current_user_can('edit_posts');
+    return current_user_can('manage_options');
   }
 }
