@@ -2,372 +2,446 @@
 
 namespace NJT\FastDup\Endpoint;
 
-use NJT\FastDup\Admin\Database\Database as Database;
-use NJT\FastDup\Admin\Helper\Helper as Helper;
+use NJT\FastDup\Admin\Database\Database;
+use NJT\FastDup\Admin\Helper\Helper;
 use NJT\FastDup\Admin\Helper\LogHelper;
 use NJT\FastDup\Admin\Helper\PackageHelper;
 use NJT\FastDup\Admin\Helper\ServerHelper;
-use NJT\FastDup\Admin\Package as Package;
+use NJT\FastDup\Admin\Package;
 
-defined('ABSPATH') || exit;
-class PackageApi
-{
-  /**
-   * Instance of this class.
-   *
-   * @since    0.8.1
-   * @var      object
-   */
-  protected static $instance = null;
+defined( 'ABSPATH' ) || exit;
+class PackageApi {
 
-  protected $package;
+	/**
+	 * Instance of this class.
+	 *
+	 * @since    0.8.1
+	 * @var      object
+	 */
+	protected static $instance = null;
 
-  /**
-   * Return an instance of this class.
-   *
-   * @since     0.8.1
-   *
-   * @return    object    A single instance of this class.
-   */
-  public static function get_instance()
-  {
+	protected $package;
 
-    // If the single instance hasn't been set, set it now.
-    if (null == self::$instance) {
-      self::$instance = new self;
-      self::$instance->do_hooks();
-    }
+	/**
+	 * Return an instance of this class.
+	 *
+	 * @since     0.8.1
+	 *
+	 * @return    object    A single instance of this class.
+	 */
+	public static function get_instance() {
 
-    return self::$instance;
-  }
+		// If the single instance hasn't been set, set it now.
+		if ( null == self::$instance ) {
+			self::$instance = new self();
+			self::$instance->do_hooks();
+		}
 
-  /**
-   * Initialize the plugin by setting localization and loading public scripts
-   * and styles.
-   *
-   * @since     0.8.1
-   */
-  private function __construct()
-  {
-    $this->package = new Package();
-  }
+		return self::$instance;
+	}
 
-  /**
-   * Set up WordPress hooks and filters
-   *
-   * @return void
-   */
-  public function do_hooks()
-  {
-    add_action('rest_api_init', array($this, 'register_routes'));
-  }
+	/**
+	 * Initialize the plugin by setting localization and loading public scripts
+	 * and styles.
+	 *
+	 * @since     0.8.1
+	 */
+	private function __construct() {
+		$this->package = new Package();
+	}
 
-  /**
-   * Register the routes for the objects of the controller.
-   */
-  public function register_routes()
-  {
-    $namespace = 'njt-fastdup/v1';
-    // Rest Api
-    register_rest_route($namespace, '/packages', array(
-      array(
-        'methods' => 'GET',
-        'callback' => array($this, 'process_build'),
-        'permission_callback' => array($this, 'njt_fastdup_permissions_check'),
-      ),
-      array(
-        'methods' => 'POST',
-        'callback' => array($this, 'build_package'),
-        'permission_callback' => array($this, 'njt_fastdup_permissions_check'),
-      )
-    ));
+	/**
+	 * Set up WordPress hooks and filters
+	 *
+	 * @return void
+	 */
+	public function do_hooks() {
+		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
+		add_action( 'wp_ajax_njt_fastdup_download_file', array( $this, 'download_file' ) );
+	}
 
-    register_rest_route($namespace, '/packages/scan-package', array(
-      'methods' => 'POST',
-      'callback' => array($this, 'scan_package'),
-      'permission_callback' => array($this, 'njt_fastdup_permissions_check'),
-    ));
+	/**
+	 * Register the routes for the objects of the controller.
+	 */
+	public function register_routes() {
+		$namespace = 'njt-fastdup/v1';
+		// Rest Api
+		register_rest_route(
+			$namespace,
+			'/packages',
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( $this, 'process_build' ),
+					'permission_callback' => array( $this, 'njt_fastdup_permissions_check' ),
+				),
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'build_package' ),
+					'permission_callback' => array( $this, 'njt_fastdup_permissions_check' ),
+				),
+			)
+		);
 
-    register_rest_route($namespace, '/packages/download', array(
-      'methods' => 'POST',
-      'callback' => array($this, 'download'),
-      'permission_callback' => array($this, 'njt_fastdup_permissions_check'),
-    ));
+		register_rest_route(
+			$namespace,
+			'/packages/scan-package',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'scan_package' ),
+				'permission_callback' => array( $this, 'njt_fastdup_permissions_check' ),
+			)
+		);
 
-    register_rest_route($namespace, "/packages/view-log", array(
-      'methods' => 'GET',
-      'callback' => array($this, 'view_log'),
-      'permission_callback' => array($this, 'njt_fastdup_permissions_check'),
-    ));
+		register_rest_route(
+			$namespace,
+			'/packages/download',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'download' ),
+				'permission_callback' => array( $this, 'njt_fastdup_permissions_check' ),
+			)
+		);
 
-    register_rest_route($namespace, '/packages/update-status', array(
-      'methods' => 'POST',
-      'callback' => array($this, 'update_status'),
-      'permission_callback' => array($this, 'njt_fastdup_permissions_check'),
-    ));
+		register_rest_route(
+			$namespace,
+			'/packages/view-log',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'view_log' ),
+				'permission_callback' => array( $this, 'njt_fastdup_permissions_check' ),
+			)
+		);
 
-    register_rest_route($namespace, '/packages/delete', array(
-      'methods' => 'POST',
-      'callback' => array($this, 'delete_package'),
-      'permission_callback' => array($this, 'njt_fastdup_permissions_check'),
-    ));
+		register_rest_route(
+			$namespace,
+			'/packages/update-status',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'update_status' ),
+				'permission_callback' => array( $this, 'njt_fastdup_permissions_check' ),
+			)
+		);
 
-    register_rest_route($namespace, '/packages/multi-delete', array(
-      'methods' => 'POST',
-      'callback' => array($this, 'multi_delete'),
-      'permission_callback' => array($this, 'njt_fastdup_permissions_check'),
-    ));
-  }
+		register_rest_route(
+			$namespace,
+			'/packages/delete',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'delete_package' ),
+				'permission_callback' => array( $this, 'njt_fastdup_permissions_check' ),
+			)
+		);
 
-  public function scan_package($request)
-  {
-    $template_id = $request->get_json_params()['template_id'];
+		register_rest_route(
+			$namespace,
+			'/packages/multi-delete',
+			array(
+				'methods'             => 'POST',
+				'callback'            => array( $this, 'multi_delete' ),
+				'permission_callback' => array( $this, 'njt_fastdup_permissions_check' ),
+			)
+		);
+	}
 
-    ServerHelper::set_limit_excute_script();
-    Helper::init_archive_directory();
-    $scan_data = Package::run_scanner($template_id);
+	public function scan_package( $request ) {
+		$template_id = $request->get_json_params()['template_id'];
 
-    $response_object = array(
-      'status' => $scan_data ? true : false,
-      'scan_data' => $scan_data,
-    );
-    return new \WP_REST_Response($response_object, 200);
-  }
+		ServerHelper::set_limit_excute_script();
+		Helper::init_archive_directory();
+		$scan_data = Package::run_scanner( $template_id );
 
-  public function delete_package($request)
-  {
-    $payload = $request->get_json_params();
-    $option_package_active = get_option(NJT_FASTDUP_PACKAGE_ACTIVE);
-    if ($payload['id'] == $option_package_active['package_id']) {
-      PackageHelper::update_option_package_active('', '', false, '');
-    }
-    $result = Package::delete_package($payload['id'], $payload['name_hash']);
-    $list_package = $this->package->list_package();
+		$response_object = array(
+			'status'    => $scan_data ? true : false,
+			'scan_data' => $scan_data,
+		);
+		return new \WP_REST_Response( $response_object, 200 );
+	}
 
-    $response_object = array(
-      'status' => $result ? true : false,
-      'list_package' => $list_package,
-      'message' => $result ? __('Deleted Successfully!', 'fastdup') : __('Delete Unsuccessfully!', 'fastdup'),
-    );
-    return new \WP_REST_Response($response_object, 200);
-  }
+	public function delete_package( $request ) {
+		$payload               = $request->get_json_params();
+		$option_package_active = get_option( NJT_FASTDUP_PACKAGE_ACTIVE );
+		if ( $payload['id'] == $option_package_active['package_id'] ) {
+			PackageHelper::update_option_package_active( '', '', false, '' );
+		}
+		$result       = Package::delete_package( $payload['id'], $payload['name_hash'] );
+		$list_package = $this->package->list_package();
 
-  public function multi_delete($request)
-  {
-    $payload = $request->get_json_params();
-    $packages = $payload['packages'];
+		$response_object = array(
+			'status'       => $result ? true : false,
+			'list_package' => $list_package,
+			'message'      => $result ? __( 'Deleted Successfully!', 'fastdup' ) : __( 'Delete Unsuccessfully!', 'fastdup' ),
+		);
+		return new \WP_REST_Response( $response_object, 200 );
+	}
 
-    foreach ($packages as $key => $package) {
-      Package::delete_package($package['id'], $package['name_hash']);
-    }
-    $list_package = $this->package->list_package();
+	public function multi_delete( $request ) {
+		$payload  = $request->get_json_params();
+		$packages = $payload['packages'];
 
-    $response_object = array(
-      'status' => true,
-      'list_package' => $list_package,
-      'message' => __('Delete Selected Successfully!', 'fastdup'),
-    );
-    return new \WP_REST_Response($response_object, 200);
-  }
+		foreach ( $packages as $key => $package ) {
+			Package::delete_package( $package['id'], $package['name_hash'] );
+		}
+		$list_package = $this->package->list_package();
 
-  public function build_package($request)
-  {
-    @set_time_limit(0);
-    $payload = $request->get_json_params();
-    $template_id = $payload['template_id'];
-    $archive_filter = $payload['archive_filter'];
+		$response_object = array(
+			'status'       => true,
+			'list_package' => $list_package,
+			'message'      => __( 'Delete Selected Successfully!', 'fastdup' ),
+		);
+		return new \WP_REST_Response( $response_object, 200 );
+	}
 
-    $option = get_option(NJT_FASTDUP_PACKAGE_ACTIVE);
-    if(is_array($option) && isset($option['package_id'])) {
-      $old_id = get_option(NJT_FASTDUP_PACKAGE_ACTIVE)['package_id'];
-    }
-    
-    if (isset($old_id)) {
-      PackageHelper::unschedule_build($old_id);
-    }
+	public function build_package( $request ) {
+		@set_time_limit( 0 );
+		$payload        = $request->get_json_params();
+		$template_id    = $payload['template_id'];
+		$archive_filter = $payload['archive_filter'];
 
-    $package_id = $this->package->create_package($template_id, $archive_filter);
-    // if (isset($package_id)) {
-    //   $is_schedule = $this->package->schedule_build($package_id);
-    // }
+		$option = get_option( NJT_FASTDUP_PACKAGE_ACTIVE );
+		if ( is_array( $option ) && isset( $option['package_id'] ) ) {
+			$old_id = get_option( NJT_FASTDUP_PACKAGE_ACTIVE )['package_id'];
+		}
 
-    $is_schedule = true;
+		if ( isset( $old_id ) ) {
+			PackageHelper::unschedule_build( $old_id );
+		}
 
-    $response_object = array(
-      'status' => $is_schedule ? true : false,
-      'result' => array(
-        'package_id' => $package_id,
-      ),
-      'message' => $is_schedule ? __('Create Package Successfully!', 'fastdup') : __('Create Package Unsuccessfully!', 'fastdup'),
-    );
-    $this->close_connection($response_object);
-    Package::build_event($package_id);
-    exit;
-    // return new \WP_REST_Response($response_object, 200);
-  }
-  private function close_connection( $arr ) {
-    ob_start();
+		$package_id = $this->package->create_package( $template_id, $archive_filter );
+		// if (isset($package_id)) {
+		// $is_schedule = $this->package->schedule_build($package_id);
+		// }
 
-    echo wp_json_encode( $arr );
+		$is_schedule = true;
 
-    header('Connection: close');
-    header('Content-Length: '.ob_get_length());
-    header('Content-Encoding: none');
-    ob_end_flush();
-    @ob_flush();
-    flush();
-    if( function_exists( 'fastcgi_finish_request' ) ) {
-        fastcgi_finish_request();
-    }
-    if( function_exists( 'litespeed_finish_request' ) ) {
-        litespeed_finish_request();
-    }
-  }
-  public function process_build()
-  {
-    $option = get_option(NJT_FASTDUP_PACKAGE_ACTIVE);
-    if( ! is_array( $option ) || ! isset( $option['package_id'] ) ) {
-      $option = array (
-        'package_id' => '',
-        'build_step' => '',
-        'is_build' => false,
-        'time_process' => '',
-        'process_percent' => -1,
-      );
-    }
-    $package = Database::get_package_id($option['package_id']);
-    $process_percent = isset($package->status) ? $package->status : 0;
+		$response_object = array(
+			'status'  => $is_schedule ? true : false,
+			'result'  => array(
+				'package_id' => $package_id,
+			),
+			'message' => $is_schedule ? __( 'Create Package Successfully!', 'fastdup' ) : __( 'Create Package Unsuccessfully!', 'fastdup' ),
+		);
+		$this->close_connection( $response_object );
+		Package::build_event( $package_id );
+		exit;
+		// return new \WP_REST_Response($response_object, 200);
+	}
+	private function close_connection( $arr ) {
+		ob_start();
 
-    $files_download = array();
-    if ($process_percent == 100) {
-      $package = Package::initial_package_by_id($option['package_id']);
-      $archive_path = NJT_FASTDUP_ARCHIVE_DIR_PATH_PACKAGES . '/' . "{$package->name_hash}_archive.zip";
-      $log_path = NJT_FASTDUP_PATH_LOG . '/' . "logs-{$package->name_hash}.txt";
-      if ($package) {
-        array_push($files_download, array(
-          'key' => 'archive',
-          'title' => __('Archive', 'fastdup'),
-          'size' => file_exists($archive_path) ? Helper::format_bytes(filesize($archive_path)) : '0B',
-        ));
-        array_push($files_download, array(
-          'key' => 'log',
-          'title' => __('Log', 'fastdup'),
-          'size' => file_exists($log_path) ? Helper::format_bytes(filesize($log_path)) : '0B',
-        ));
-      }
-    }
+		echo wp_json_encode( $arr );
 
-    $response_object = array(
-      'list_package' => $this->package->list_package(),
-      'files_download' => $files_download,
-      'package_id' => $option['package_id'],
-      'build_step' => $option['build_step'],
-      'is_build' => $option['is_build'],
-      'time_process' => $option['time_process'],
-      'process_percent' => $process_percent,
-    );
-    return new \WP_REST_Response($response_object, 200);
-  }
+		header( 'Connection: close' );
+		header( 'Content-Length: ' . ob_get_length() );
+		header( 'Content-Encoding: none' );
+		ob_end_flush();
+		@ob_flush();
+		flush();
+		if ( function_exists( 'fastcgi_finish_request' ) ) {
+			fastcgi_finish_request();
+		}
+		if ( function_exists( 'litespeed_finish_request' ) ) {
+			litespeed_finish_request();
+		}
+	}
+	public function process_build() {
+		$option = get_option( NJT_FASTDUP_PACKAGE_ACTIVE );
+		if ( ! is_array( $option ) || ! isset( $option['package_id'] ) ) {
+			$option = array(
+				'package_id'      => '',
+				'build_step'      => '',
+				'is_build'        => false,
+				'time_process'    => '',
+				'process_percent' => -1,
+			);
+		}
+		$package         = Database::get_package_id( $option['package_id'] );
+		$process_percent = isset( $package->status ) ? $package->status : 0;
 
-  /**
-   * DOWNLOAD PACKAGE
-   */
-  public function download($request)
-  {
-    $payload = $request->get_json_params();
-    $id = $payload['id'];
-    $type = $payload['type'];
+		$files_download = array();
+		if ( $process_percent == 100 ) {
+			$package      = Package::initial_package_by_id( $option['package_id'] );
+			$archive_path = NJT_FASTDUP_ARCHIVE_DIR_PATH_PACKAGES . '/' . "{$package->name_hash}_archive.zip";
+			$log_path     = NJT_FASTDUP_PATH_LOG . '/' . "logs-{$package->name_hash}.txt";
+			if ( $package ) {
+				array_push(
+					$files_download,
+					array(
+						'key'   => 'archive',
+						'title' => __( 'Archive', 'fastdup' ),
+						'size'  => file_exists( $archive_path ) ? Helper::format_bytes( filesize( $archive_path ) ) : '0B',
+					)
+				);
+				array_push(
+					$files_download,
+					array(
+						'key'   => 'log',
+						'title' => __( 'Log', 'fastdup' ),
+						'size'  => file_exists( $log_path ) ? Helper::format_bytes( filesize( $log_path ) ) : '0B',
+					)
+				);
+			}
+		}
 
-    if ($type == 'installer') {
-      $package = new Package();
-    } else {
-      $package = Package::initial_package_by_id($id);
-    }
+		$response_object = array(
+			'list_package'    => $this->package->list_package(),
+			'files_download'  => $files_download,
+			'package_id'      => $option['package_id'],
+			'build_step'      => $option['build_step'],
+			'is_build'        => $option['is_build'],
+			'time_process'    => $option['time_process'],
+			'process_percent' => $process_percent,
+		);
+		return new \WP_REST_Response( $response_object, 200 );
+	}
 
-    $file_path = $package->get_local_package_file($type);
-    $file_content = null;
-    $result = $file_path;
+	/**
+	 * DOWNLOAD PACKAGE
+	 */
+	public function download( $request ) {
+		$payload = $request->get_json_params();
+		$id      = $payload['id'];
+		$type    = $payload['type'];
 
-    if ($type == 'installer' || $type == 'log') {
-      @session_write_close();
-      header("Pragma: public");
-      header("Expires: 0");
-      header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
-      header("Cache-Control: private", false);
-      header("Content-Transfer-Encoding: binary");
+		$package = new Package();
+		if ( $type === 'log' || $type === 'archive' ) {
+			$package = Package::initial_package_by_id( $id );
+		}
 
-      if (isset($file_path)) {
-        $fp = fopen($file_path, 'rb');
-        if ($fp !== false) {
-          $file_content = file_get_contents($file_path);
-        }
-      }
-      $result = base64_encode($file_content);
-    }
+		if ( $type === 'log' || $type === 'installer' ) {
+			$package_file = $package->get_local_package_file( $type );
+			$file_path    = $package_file['file_path'] ?? '';
+			$file_content = null;
+			$result       = '';
 
-    $response_object = array(
-      'status' => $result ? true : false,
-      'result' => $result,
-      'message' => $result ? __('Download Successfully!', 'fastdup') : __('Download Unsuccessfully!', 'fastdup'),
-    );
-    return new \WP_REST_Response($response_object, 200);
-  }
+			@session_write_close();
+			header( 'Pragma: public' );
+			header( 'Expires: 0' );
+			header( 'Cache-Control: must-revalidate, post-check=0, pre-check=0' );
+			header( 'Cache-Control: private', false );
+			header( 'Content-Transfer-Encoding: binary' );
 
-  /**
-   * Update status when status server > 500
-   */
-  public function update_status($request)
-  {
-    $payload = $request->get_json_params();
-    $package_id = $payload['id'];
-    $package = Package::initial_package_by_id($package_id);
-    if ($package) {
-      $name_hash = $package->name_hash;
-      $result = Database::update_package($package_id, array('status' => -1));
-      LogHelper::write_log($name_hash, 'error', '//========BUILD PACKAGE ERROR========//');
-      LogHelper::write_log($name_hash, 'error', $payload['error']);
-      LogHelper::write_log($name_hash, 'error', $payload['error_message']);
-      LogHelper::write_log($name_hash, 'error', '//========BUILD PACKAGE ERROR========//');
-      $option = get_option(NJT_FASTDUP_PACKAGE_ACTIVE);
-      if ($option['package_id'] == $package_id) {
-        PackageHelper::update_option_package_active($package_id, 'error', false, '');
-      }
-    } else {
-      $result = false;
-    }
+			if ( isset( $file_path ) ) {
+				$fp = fopen( $file_path, 'rb' );
+				if ( $fp !== false ) {
+					$file_content = file_get_contents( $file_path );
+				}
+			}
+			$result = base64_encode( $file_content );
+		} else {
+			$result = add_query_arg(
+				array(
+					'action'     => 'njt_fastdup_download_file',
+					'package_id' => $id,
+					'type'       => $type,
+					'nonce'      => wp_create_nonce( 'njt_fastdup_download_file' ),
+				),
+				admin_url( 'admin-ajax.php' )
+			);
+		}
 
-    $list_package = $this->package->list_package();
-    $response_object = array(
-      'status' => $result ? true : false,
-      'list_package' => $list_package,
-    );
-    return new \WP_REST_Response($response_object, 200);
-  }
+		$response_object = array(
+			'status'  => $result ? true : false,
+			'result'  => $result,
+			'message' => $result ? __( 'Download Successfully!', 'fastdup' ) : __( 'Download Unsuccessfully!', 'fastdup' ),
+		);
+		return new \WP_REST_Response( $response_object, 200 );
+	}
+	public function download_file() {
+		$package_id = (int) $_GET['package_id'] ?? 0;
+		$nonce      = $_GET['nonce'] ?? '';
+		$nonce      = sanitize_text_field( $nonce );
+		if ( ! wp_verify_nonce( $nonce, 'njt_fastdup_download_file' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid nonce', 'fastdup' ) ), 400 );
+			exit;
+		}
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Unauthorized', 'fastdup' ) ), 403 );
+			exit;
+		}
+		$package      = Package::initial_package_by_id( $package_id );
+		$package_file = $package->get_local_package_file( 'archive' );
+		$file_path    = $package_file['file_path'] ?? '';
 
-  public function view_log($request)
-  {
-    $payload = stripslashes_deep($request);
-    $package = Package::initial_package_by_id($payload['package_id']);
-    $name_hash = $package->name_hash;
+		if ( ! $file_path || ! file_exists( $file_path ) ) {
+			wp_send_json_error( array( 'message' => __( 'File not found', 'fastdup' ) ), 404 );
+			exit;
+		}
 
-    $file_path = Helper::safe_path(NJT_FASTDUP_PATH_LOG . DIRECTORY_SEPARATOR . "logs-{$name_hash}.txt");
-    $result = file_get_contents($file_path);
+		$filename = basename( $file_path );
+		$filesize = filesize( $file_path );
 
-    $response_object = array(
-      'status' => $result ? true : false,
-      'result' => $result,
-    );
-    return new \WP_REST_Response($response_object, 200);
-  }
+		status_header( 200 );
+		header( 'Content-Type: application/zip' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+		header( 'Content-Length: ' . $filesize );
+		header( 'Content-Transfer-Encoding: binary' );
+		header( 'Cache-Control: no-cache, must-revalidate' );
+		header( 'Pragma: no-cache' );
+		header( 'Expires: 0' );
 
-  /**
-   * Check if a given request has permission
-   *
-   * @param WP_REST_Request $request Full data about the request.
-   * @return WP_Error|bool
-   */
-  public function njt_fastdup_permissions_check($request)
-  {
-    return current_user_can('manage_options');
-  }
+		if ( ob_get_level() ) {
+			ob_end_clean();
+		}
+
+		@set_time_limit( 0 );
+		header( 'Content-Encoding: none' );
+		readfile( $file_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
+		exit;
+	}
+
+	/**
+	 * Update status when status server > 500
+	 */
+	public function update_status( $request ) {
+		$payload    = $request->get_json_params();
+		$package_id = $payload['id'];
+		$package    = Package::initial_package_by_id( $package_id );
+		if ( $package ) {
+			$name_hash = $package->name_hash;
+			$result    = Database::update_package( $package_id, array( 'status' => -1 ) );
+			LogHelper::write_log( $name_hash, 'error', '//========BUILD PACKAGE ERROR========//' );
+			LogHelper::write_log( $name_hash, 'error', $payload['error'] );
+			LogHelper::write_log( $name_hash, 'error', $payload['error_message'] );
+			LogHelper::write_log( $name_hash, 'error', '//========BUILD PACKAGE ERROR========//' );
+			$option = get_option( NJT_FASTDUP_PACKAGE_ACTIVE );
+			if ( $option['package_id'] == $package_id ) {
+				PackageHelper::update_option_package_active( $package_id, 'error', false, '' );
+			}
+		} else {
+			$result = false;
+		}
+
+		$list_package    = $this->package->list_package();
+		$response_object = array(
+			'status'       => $result ? true : false,
+			'list_package' => $list_package,
+		);
+		return new \WP_REST_Response( $response_object, 200 );
+	}
+
+	public function view_log( $request ) {
+		$payload   = stripslashes_deep( $request );
+		$package   = Package::initial_package_by_id( $payload['package_id'] );
+		$name_hash = $package->name_hash;
+
+		$file_path = Helper::safe_path( NJT_FASTDUP_PATH_LOG . DIRECTORY_SEPARATOR . "logs-{$name_hash}.txt" );
+		$result    = file_get_contents( $file_path );
+
+		$response_object = array(
+			'status' => $result ? true : false,
+			'result' => $result,
+		);
+		return new \WP_REST_Response( $response_object, 200 );
+	}
+
+	/**
+	 * Check if a given request has permission
+	 *
+	 * @param WP_REST_Request $request Full data about the request.
+	 * @return WP_Error|bool
+	 */
+	public function njt_fastdup_permissions_check( $request ) {
+		return current_user_can( 'manage_options' );
+	}
 }

@@ -359,7 +359,203 @@ class MySQLImporter {
     return $query;
   }
 
-  public function getOldSiteUrl() {
+  /**
+   * Replace URLs in serialized data (like widget_block, theme options, etc.)
+   * Must be called AFTER doImport() has completed
+   * 
+   * @param string $old_domain Old site URL
+   * @param string $new_domain New site URL
+   * @param string $database Database name
+   * @return array Results of the operation
+   */
+  public function replaceSerializedUrls($old_domain, $new_domain, $database)
+  {
+    $results = array('updated' => 0, 'errors' => array());
+
+    if ($this->hadErrors || !$this->conn) {
+      $results['errors'][] = 'Database connection not available';
+      return $results;
+    }
+
+    // Select the database
+    if (!$this->conn->select_db($database)) {
+      $results['errors'][] = 'Cannot select database: ' . $this->conn->error;
+      return $results;
+    }
+
+    // Get db prefix
+    $scan_path = './njt-fastdup-installer/scan_package.json';
+    $db_prefix = 'wp_';
+    if (file_exists($scan_path)) {
+      $package_obj = json_decode(file_get_contents($scan_path));
+      $db_prefix = isset($package_obj->Database->prefix) ? $package_obj->Database->prefix : 'wp_';
+    }
+
+    $old_domain = rtrim($old_domain, '/');
+    $new_domain = rtrim($new_domain, '/');
+
+    // List of options that contain serialized data and need URL replacement
+    $serialized_options = array(
+      'widget_block',
+      'widget_text',
+      'widget_custom_html',
+      'sidebars_widgets',
+      'theme_mods_%',  // Theme mods for any theme
+    );
+
+    foreach ($serialized_options as $option_pattern) {
+      // Use LIKE for pattern matching (e.g., theme_mods_%)
+      $operator = (strpos($option_pattern, '%') !== false) ? 'LIKE' : '=';
+
+      $sql = "SELECT option_id, option_name, option_value FROM {$db_prefix}options 
+              WHERE option_name {$operator} '" . $this->conn->real_escape_string($option_pattern) . "' 
+              AND option_value LIKE '%" . $this->conn->real_escape_string($old_domain) . "%'";
+
+      $result = $this->conn->query($sql);
+
+      if ($result && $result->num_rows > 0) {
+        while ($row = $result->fetch_assoc()) {
+          $original_value = $row['option_value'];
+          $new_value = $this->replaceUrlInSerializedData($original_value, $old_domain, $new_domain);
+
+          if ($new_value !== $original_value && $new_value !== false) {
+            $update_sql = "UPDATE {$db_prefix}options SET option_value = '" .
+              $this->conn->real_escape_string($new_value) . "' 
+                          WHERE option_id = " . intval($row['option_id']);
+
+            if ($this->conn->query($update_sql)) {
+              $results['updated']++;
+            } else {
+              $results['errors'][] = "Failed to update {$row['option_name']}: " . $this->conn->error;
+            }
+          }
+        }
+      }
+    }
+
+    return $results;
+  }
+
+  /**
+   * Replace URL in serialized data with proper string length fixing
+   * 
+   * @param string $data Serialized string
+   * @param string $old_url Old URL to replace
+   * @param string $new_url New URL
+   * @return string|false Fixed serialized string or false on error
+   */
+  private function replaceUrlInSerializedData($data, $old_url, $new_url)
+  {
+    // Check if it's serialized data
+    if (!$this->isSerialized($data)) {
+      // Not serialized, just do simple replace
+      return str_replace($old_url, $new_url, $data);
+    }
+
+    // Try to unserialize first
+    $unserialized = @unserialize($data);
+    if ($unserialized !== false) {
+      // Successfully unserialized - do recursive replace and reserialize
+      $replaced = $this->recursiveReplace($unserialized, $old_url, $new_url);
+      return serialize($replaced);
+    }
+
+    // Cannot unserialize - use regex-based string length fixing
+    // This handles broken serialized data
+    return $this->fixSerializedString($data, $old_url, $new_url);
+  }
+
+  /**
+   * Recursively replace URLs in arrays/objects
+   */
+  private function recursiveReplace($data, $old_url, $new_url)
+  {
+    if (is_string($data)) {
+      return str_replace($old_url, $new_url, $data);
+    }
+
+    if (is_array($data)) {
+      foreach ($data as $key => $value) {
+        $data[$key] = $this->recursiveReplace($value, $old_url, $new_url);
+      }
+      return $data;
+    }
+
+    if (is_object($data)) {
+      foreach (get_object_vars($data) as $key => $value) {
+        $data->$key = $this->recursiveReplace($value, $old_url, $new_url);
+      }
+      return $data;
+    }
+
+    return $data;
+  }
+
+  /**
+   * Fix serialized string lengths after replacement
+   * Used when unserialize fails
+   */
+  private function fixSerializedString($data, $old_url, $new_url)
+  {
+    // First do the replacement
+    $data = str_replace($old_url, $new_url, $data);
+
+    // Now fix the string lengths using regex
+    // Pattern matches: s:LENGTH:"STRING";
+    $pattern = '/s:(\d+):"(.*?)";/s';
+
+    $fixed = preg_replace_callback($pattern, function ($matches) {
+      $string = $matches[2];
+      $actual_length = strlen($string);
+      return 's:' . $actual_length . ':"' . $string . '";';
+    }, $data);
+
+    return $fixed !== null ? $fixed : $data;
+  }
+
+  /**
+   * Check if a string is serialized
+   */
+  private function isSerialized($data)
+  {
+    if (!is_string($data)) {
+      return false;
+    }
+    $data = trim($data);
+    if ('N;' === $data) {
+      return true;
+    }
+    if (strlen($data) < 4) {
+      return false;
+    }
+    if (':' !== $data[1]) {
+      return false;
+    }
+    $lastc = substr($data, -1);
+    if (';' !== $lastc && '}' !== $lastc) {
+      return false;
+    }
+    $token = $data[0];
+    switch ($token) {
+      case 's':
+        if ('"' !== substr($data, -2, 1)) {
+          return false;
+        }
+      // Fall through
+      case 'a':
+      case 'O':
+      case 'C':
+        return (bool) preg_match("/^{$token}:[0-9]+:/s", $data);
+      case 'b':
+      case 'i':
+      case 'd':
+        return (bool) preg_match("/^{$token}:[0-9.E+-]+;$/", $data);
+    }
+    return false;
+  }
+
+  public function getOldSiteUrl()
+  {
     $scan_path = './njt-fastdup-installer/scan_package.json';
     $result = null;
     if (file_exists($scan_path)) {
@@ -867,13 +1063,25 @@ class Installer_Package {
 
       // Delete File Zip
       if (isset($_COOKIE['njt-fastdup-zip-name'])) {
-        $installer_file_zip = dirname(__FILE__) . '/' . $_COOKIE['njt-fastdup-zip-name'];
-        if (file_exists($installer_file_zip)) {
-          if (is_readable($installer_file_zip)) {
-            unlink($installer_file_zip);
-          } else {
-            $status = false;
-            throw new \Exception("$installer_file_zip must have permission read");
+        $raw_name = $_COOKIE['njt-fastdup-zip-name'];
+        $is_plain_filename = (basename($raw_name) === $raw_name)
+          && (strpos($raw_name, '/') === false)
+          && (strpos($raw_name, '\\') === false)
+          && (strpos($raw_name, "\0") === false);
+        $is_zip = (strtolower(pathinfo($raw_name, PATHINFO_EXTENSION)) === 'zip');
+
+        if ($is_plain_filename && $is_zip) {
+          $installer_dir      = realpath(dirname(__FILE__));
+          $installer_file_zip = $installer_dir . DIRECTORY_SEPARATOR . $raw_name;
+          if (strpos($installer_file_zip, $installer_dir . DIRECTORY_SEPARATOR) === 0
+            && file_exists($installer_file_zip)
+          ) {
+            if (is_readable($installer_file_zip)) {
+              unlink($installer_file_zip);
+            } else {
+              $status = false;
+              throw new \Exception("$installer_file_zip must have permission read");
+            }
           }
         }
       }
@@ -968,12 +1176,20 @@ class Installer_Package {
     return $status;
   }
 
-  public function importDatabase($db_host, $db_user, $db_name, $db_pass) {
-    if(!file_exists("./njt-fastdup-installer/database.sql")) {
+  public function importDatabase($db_host, $db_user, $db_name, $db_pass)
+  {
+    if (!file_exists("./njt-fastdup-installer/database.sql")) {
       return 'njt-fastdup-installer/database.sql Not Found';
     }
     $mysqlImport = new MySQLImporter($db_host, $db_user, $db_pass, false);
     $mysqlImport->doImport("./njt-fastdup-installer/database.sql", $db_name, true, true);
+
+    // Handle serialized data replacement
+    $old_site = $mysqlImport->getOldSiteUrl();
+    $new_site = Helper::get_instance()->getCurrentSite();
+    if ($old_site && $new_site) {
+      $mysqlImport->replaceSerializedUrls($old_site, $new_site, $db_name);
+    }
 
     if ($mysqlImport->hadErrors) {
       $errors = json_encode($mysqlImport->errors, true);

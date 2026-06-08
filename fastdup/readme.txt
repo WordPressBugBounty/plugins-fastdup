@@ -1,10 +1,10 @@
 === FastDup - Fastest WordPress Migration & Duplicator ===
 Contributors: ninjateam
-Donate link: https://codecanyon.net/item/media-folders-manager-for-wordpress/21715379
-Tags: migration, backup, duplicator, wp migration, backwpup, clone wordpress, duplicate, duplicate wordpress, migrate
+Donate link: https://ninjateam.org/fastdup-duplicate-wordpress-migration/
+Tags: wordpress backup, migration, backup, duplicator, staging
 Requires at least: 3.0
-Tested up to: 6.9
-Stable tag: 2.7.2
+Tested up to: 7.0
+Stable tag: 2.7.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,8 @@ It provides new convenient features, such as multiple templates, to help you mig
 [DOCUMENTATION](https://ninjateam.gitbook.io/fastdup/)
 
 == ⚡️ COMMON USE CASES ==
-PICK FASTDUP WHEN YOU WANT TO MIGRATE
+
+Pick FastDup When You Want To Migrate Sites:
 
 - Test your developments on a duplicated WordPress build 
 - Move the WordPress copy to a live site
@@ -105,6 +106,9 @@ Yes, FastDup is free and full-fledged.
 8. Installation successful
 
 == Changelog ==
+
+= Jun 8, 2026 - Version 2.7.3 =
+- Fixed: Backup package web path
 
 = Jan 29, 2026 - Version 2.7.2 =
 - Improved: Security
